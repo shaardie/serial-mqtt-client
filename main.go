@@ -6,10 +6,11 @@ import (
 	"io"
 	"log"
 	"os"
-	"strings"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"gopkg.in/alecthomas/kingpin.v2"
+
+	parser "github.com/shaardie/serial-mqtt-client/parser"
 )
 
 var (
@@ -18,8 +19,8 @@ var (
 	port      = kingpin.Flag("port", "Serial Port").Default("/dev/ttyUSB0").String()
 	baudrate  = kingpin.Flag("baudrate", "Baudrate").Default("115200").Int()
 
-	client     mqtt.Client
-	serialPort io.ReadWriteCloser
+	client mqtt.Client
+	rwc    io.ReadWriteCloser
 )
 
 func mainWithErrors() error {
@@ -40,32 +41,39 @@ func mainWithErrors() error {
 	defer client.Disconnect(250)
 
 	var err error
-	serialPort, err = initSerial(*port, *baudrate)
+	rwc, err = NewSerial(*port, *baudrate)
 	if err != nil {
-		return fmt.Errorf("Unable to connect to serial connection: %v", err)
+		return fmt.Errorf("Unable to connect to connect: %v", err)
 	}
-	log.Printf("Connected to %v", *brokerURL)
+	defer rwc.Close()
 
-	scanner := bufio.NewScanner(serialPort)
+	scanner := bufio.NewScanner(rwc)
 	for scanner.Scan() {
-		lineSplit := strings.SplitN(scanner.Text(), " ", 2)
-		if len(lineSplit) != 3 {
-			log.Println("Nonesense line...continue")
+		line := scanner.Text()
+		cmd, err := parser.ParseLine(line)
+		if err != nil {
+			log.Println(err)
 			continue
 		}
-		switch command := lineSplit[0]; command {
-		case "publish":
-			topic := lineSplit[1]
-			content := lineSplit[2]
-			token := client.Publish(topic, 0, false, content)
+		if cmd == nil {
+			log.Println(line)
+			continue
+		}
+		switch cmd.Command {
+		case parser.PUBLISH:
+			token := client.Publish(cmd.Topic, 0, false, cmd.Value)
 			token.Wait()
 			if err := token.Error(); err != nil {
-				log.Printf("Unable to publish to %v: %v\n", topic, err)
+				log.Printf("Failure during publishing %v", err)
+				continue
 			}
 			break
+		case parser.SUBSCRIBE:
+			break
 		default:
-			log.Println("Unknown Command")
+			log.Printf("Unknown Command %v", cmd.Command)
 		}
+
 	}
 
 	return nil

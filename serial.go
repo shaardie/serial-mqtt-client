@@ -6,7 +6,7 @@ import (
 	"github.com/tarm/serial"
 )
 
-func initSerial(port string, baudrate int) (io.ReadWriteCloser, error) {
+func NewSerial(port string, baudrate int) (io.ReadWriteCloser, error) {
 	c := &serial.Config{Name: port, Baud: baudrate}
 	s, err := serial.OpenPort(c)
 	if err != nil {

@@ -8,9 +8,10 @@ import (
 )
 
 const (
-	PREFIX   = "mqtt"
-	SUBSRIBE = "subscribe"
-	PUBLISH  = "publish"
+	PREFIX    = "mqtt"
+	SUBSCRIBE = "subscribe"
+	PUBLISH   = "publish"
+	SEND      = "send"
 )
 
 type Command struct {
@@ -19,6 +20,14 @@ type Command struct {
 	Value   string
 }
 
+func (c Command) String() (string, error) {
+	if c.Command != SEND {
+		return "", fmt.Errorf("can not send command %v", c.Command)
+	}
+	return fmt.Sprintf("%v %v %v", PREFIX, c.Topic, c.Value), nil
+}
+
+// ParseLine parses a line and returns the corresponding command.
 func ParseLine(line string) (*Command, error) {
 	// Use shell lexer for token splitting
 	token, err := shlex.Split(line)
@@ -38,12 +47,12 @@ func ParseLine(line string) (*Command, error) {
 	}
 
 	switch token[1] {
-	case SUBSRIBE:
+	case SUBSCRIBE:
 		if length < 3 {
 			return nil, errors.New("not enough parameter for subscribe command")
 		}
 		return &Command{
-			Command: SUBSRIBE,
+			Command: SUBSCRIBE,
 			Topic:   token[2],
 		}, nil
 	case PUBLISH:
