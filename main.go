@@ -46,21 +46,23 @@ func mainWithErrors() error {
 		return fmt.Errorf("Unable to connect to connect: %v", err)
 	}
 	defer rwc.Close()
+	log.Printf("Connected to %v", *port)
 
 	scanner := bufio.NewScanner(rwc)
 	for scanner.Scan() {
 		line := scanner.Text()
+		log.Println(line)
 		cmd, err := parser.ParseLine(line)
 		if err != nil {
 			log.Println(err)
 			continue
 		}
 		if cmd == nil {
-			log.Println(line)
 			continue
 		}
 		switch cmd.Command {
 		case parser.PUBLISH:
+			log.Printf("Publish %v to %v", cmd.Value, cmd.Topic)
 			token := client.Publish(cmd.Topic, 0, false, cmd.Value)
 			token.Wait()
 			if err := token.Error(); err != nil {
