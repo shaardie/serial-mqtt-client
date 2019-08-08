@@ -24,7 +24,7 @@ func (c Command) String() (string, error) {
 	if c.Command != SEND {
 		return "", fmt.Errorf("can not send command %v", c.Command)
 	}
-	return fmt.Sprintf("%v %v %v", PREFIX, c.Topic, c.Value), nil
+	return fmt.Sprintf("%v %v %v\n", PREFIX, c.Topic, c.Value), nil
 }
 
 // ParseLine parses a line and returns the corresponding command.
