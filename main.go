@@ -65,7 +65,7 @@ func mainWithErrors() error {
 	defer client.Disconnect(250)
 
 	var err error
-	rwc, err = NewSerial(*port, *baudrate)
+	rwc, err = newSerial(*port, *baudrate)
 	if err != nil {
 		return fmt.Errorf("Unable to connect to connect: %v", err)
 	}
