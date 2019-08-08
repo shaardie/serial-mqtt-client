@@ -6,6 +6,8 @@ import (
 	"io"
 	"log"
 	"os"
+	"strings"
+	"sync"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"gopkg.in/alecthomas/kingpin.v2"
@@ -19,17 +21,39 @@ var (
 	port      = kingpin.Flag("port", "Serial Port").Default("/dev/ttyUSB0").String()
 	baudrate  = kingpin.Flag("baudrate", "Baudrate").Default("115200").Int()
 
-	client mqtt.Client
-	rwc    io.ReadWriteCloser
+	client      mqtt.Client
+	rwc         io.ReadWriteCloser
+	serialMutex = &sync.Mutex{}
 )
+
+var msgToSerial mqtt.MessageHandler = func(client mqtt.Client, msg mqtt.Message) {
+	cmd := parser.Command{
+		Command: parser.SEND,
+		Topic:   msg.Topic(),
+		Value:   string(msg.Payload()),
+	}
+	line, err := cmd.String()
+	if err != nil {
+		log.Printf("Unable to send mqtt message via serial: %v", err)
+		return
+	}
+
+	log.Printf("Send '%v' to serial", strings.TrimSuffix(line, "\n"))
+	serialMutex.Lock()
+	defer serialMutex.Unlock()
+	_, err = rwc.Write([]byte(line))
+	if err != nil {
+		log.Printf("Unable to send mqtt message via serial: %v", err)
+		return
+	}
+}
 
 func mainWithErrors() error {
 	kingpin.Parse()
-
 	opt := mqtt.NewClientOptions()
 	opt = opt.AddBroker(*brokerURL)
 	opt = opt.SetClientID(*clientID)
-
+	opt = opt.SetDefaultPublishHandler(msgToSerial)
 	client = mqtt.NewClient(opt)
 
 	token := client.Connect()
@@ -71,6 +95,15 @@ func mainWithErrors() error {
 			}
 			break
 		case parser.SUBSCRIBE:
+			log.Printf("Subscripe to %v", cmd.Topic)
+			token := client.Subscribe(cmd.Topic, 0, nil)
+			token.Wait()
+			if err := token.Error(); err != nil {
+				if err := token.Error(); err != nil {
+					log.Printf("Failure during subsribing %v", err)
+					continue
+				}
+			}
 			break
 		default:
 			log.Printf("Unknown Command %v", cmd.Command)
